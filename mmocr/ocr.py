@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Dict, List, Optional, Union
 
 import torch
-
+import json
 from mmocr.apis.inferencers import MMOCRInferencer
 from mmocr.apis.inferencers.base_mmocr_inferencer import InputsType
 from mmocr.utils import register_all_modules
@@ -214,12 +214,17 @@ class MMOCR:
             "rec_texts", "rec_scores", "kie_labels", "kie_scores",
             "kie_edge_labels" and "kie_edge_scores".
         """
-        return self.inferencer(
-            img,
-            img_out_dir=img_out_dir,
-            show=show,
-            print_result=print_result,
-            pred_out_file=pred_out_file)
+        try:
+            result = self.inferencer(
+                img,
+                img_out_dir=img_out_dir,
+                show=show,
+                print_result=print_result,
+                pred_out_file=pred_out_file)
+        except IndexError:
+            result = dict(rec_texts=["no text"], rec_scores=[0.0], det_polygons=[[[0.0, 0.0, 0.0, 0.0, 0.0]]], det_scores=[0.0])
+            json.dump(result, open(pred_out_file, 'w'))
+        return result
 
     def get_model_config(self, model_name: str) -> Dict:
         """Get the model configuration including model config and checkpoint
