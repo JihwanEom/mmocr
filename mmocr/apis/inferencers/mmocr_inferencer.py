@@ -70,7 +70,10 @@ class MMOCRInferencer(BaseMMOCRInferencer):
                     #     new_inputs.append(
                     #         mmcv.imread(osp.join(single_input, img_path)))
                 else:
-                    single_input = mmcv.imread(single_input, backend="pillow")
+                    try:
+                        single_input = mmcv.imread(single_input, backend='pillow')
+                    except (SyntaxError, OSError): # Not a Tiff file, truncated image
+                        single_input = mmcv.imread(single_input, backend='cv2')
                     new_inputs.append(single_input)
             else:
                 new_inputs.append(single_input)

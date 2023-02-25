@@ -223,7 +223,7 @@ class MMOCR:
                 print_result=print_result,
                 pred_out_file=pred_out_file)
         except IndexError:
-            result = dict(filename=filename, rec_texts=["no text"], rec_scores=[0.0], det_polygons=[[[0.0, 0.0, 0.0, 0.0, 0.0]]], det_scores=[0.0])
+            result = dict(filename=filename, rec_texts=["NO_TEXT"], rec_scores=[0.0], det_polygons=[[[0.0, 0.0, 0.0, 0.0, 0.0]]], det_scores=[0.0])
             json.dump(result, open(pred_out_file, 'w'))
         return result
 

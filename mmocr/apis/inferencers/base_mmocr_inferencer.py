@@ -186,7 +186,10 @@ class BaseMMOCRInferencer(BaseInferencer):
 
         for single_input, pred in zip(inputs, preds):
             if isinstance(single_input, str):
-                img = mmcv.imread(single_input, backend="pillow")
+                try:
+                    img = mmcv.imread(single_input, backend='pillow')
+                except (SyntaxError, OSError): # Not a Tiff file, truncated image
+                    img = mmcv.imread(single_input, backend='cv2')
                 img = img[:, :, ::-1]
                 img_name = osp.basename(single_input)
             elif isinstance(single_input, np.ndarray):
