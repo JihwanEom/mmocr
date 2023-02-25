@@ -160,7 +160,8 @@ class MMOCRInferencer(BaseMMOCRInferencer):
                     imgs: Optional[List[np.ndarray]] = None,
                     is_batch: bool = False,
                     print_result: bool = False,
-                    pred_out_file: str = ''
+                    pred_out_file: str = '',
+                    filename: str ='',
                     ) -> Union[ResType, Tuple[ResType, np.ndarray]]:
         """Postprocess predictions.
 
@@ -181,7 +182,7 @@ class MMOCRInferencer(BaseMMOCRInferencer):
             "rec_texts", "rec_scores", "kie_labels", "kie_scores",
             "kie_edge_labels" and "kie_edge_scores".
         """
-
+        filename = filename.split('/')[-1]
         results = [{} for _ in range(len(next(iter(preds.values()))))]
         if 'rec' in self.mode:
             for i, rec_pred in enumerate(preds['rec']):
@@ -208,7 +209,7 @@ class MMOCRInferencer(BaseMMOCRInferencer):
                         kie_scores=kie_dict_res['scores']),
                     kie_edge_scores=kie_dict_res['edge_scores'],
                     kie_edge_labels=kie_dict_res['edge_labels'])
-
+        results[i].update(filename=filename)
         if not is_batch:
             results = results[0]
         if print_result:

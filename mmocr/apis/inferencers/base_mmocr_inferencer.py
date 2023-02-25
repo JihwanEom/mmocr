@@ -140,8 +140,10 @@ class BaseMMOCRInferencer(BaseInferencer):
         forward_kwargs.update(params[1])
         visualize_kwargs = self.base_params[2].copy()
         visualize_kwargs.update(params[2])
+        visualize_kwargs.update(out_file=kwargs.get("pred_out_file", ""))
         postprocess_kwargs = self.base_params[3].copy()
         postprocess_kwargs.update(params[3])
+        postprocess_kwargs.update(filename=user_inputs)
 
         data = self.preprocess(inputs, **preprocess_kwargs)
         preds = self.forward(data, **forward_kwargs)
@@ -157,7 +159,8 @@ class BaseMMOCRInferencer(BaseInferencer):
                   wait_time: int = 0,
                   draw_pred: bool = True,
                   pred_score_thr: float = 0.3,
-                  img_out_dir: str = '') -> List[np.ndarray]:
+                  img_out_dir: str = '',
+                  out_file: str = '') -> List[np.ndarray]:
         """Visualize predictions.
 
         Args:
@@ -194,8 +197,8 @@ class BaseMMOCRInferencer(BaseInferencer):
                 raise ValueError('Unsupported input type: '
                                  f'{type(single_input)}')
 
-            out_file = osp.join(img_out_dir, img_name) if img_out_dir != '' \
-                else None
+            # out_file = osp.join(img_out_dir, img_name) if img_out_dir != '' \
+            #     else None
 
             self.visualizer.add_datasample(
                 img_name,
@@ -221,6 +224,7 @@ class BaseMMOCRInferencer(BaseInferencer):
         print_result: bool = False,
         pred_out_file: str = '',
         get_datasample: bool = False,
+        filename='',
     ) -> Union[ResType, Tuple[ResType, np.ndarray]]:
         """Postprocess predictions.
 

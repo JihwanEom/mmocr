@@ -214,6 +214,7 @@ class MMOCR:
             "rec_texts", "rec_scores", "kie_labels", "kie_scores",
             "kie_edge_labels" and "kie_edge_scores".
         """
+        filename = img.split('/')[-1]
         try:
             result = self.inferencer(
                 img,
@@ -222,7 +223,7 @@ class MMOCR:
                 print_result=print_result,
                 pred_out_file=pred_out_file)
         except IndexError:
-            result = dict(rec_texts=["no text"], rec_scores=[0.0], det_polygons=[[[0.0, 0.0, 0.0, 0.0, 0.0]]], det_scores=[0.0])
+            result = dict(filename=filename, rec_texts=["no text"], rec_scores=[0.0], det_polygons=[[[0.0, 0.0, 0.0, 0.0, 0.0]]], det_scores=[0.0])
             json.dump(result, open(pred_out_file, 'w'))
         return result
 
