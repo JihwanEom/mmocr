@@ -2,7 +2,8 @@
 import os.path as osp
 from datetime import datetime
 from typing import Dict, List, Optional, Tuple, Union
-
+import PIL
+PIL.Image.MAX_IMAGE_PIXELS = 933120000
 import mmcv
 import mmengine
 import numpy as np
@@ -69,7 +70,7 @@ class MMOCRInferencer(BaseMMOCRInferencer):
                     #     new_inputs.append(
                     #         mmcv.imread(osp.join(single_input, img_path)))
                 else:
-                    single_input = mmcv.imread(single_input)
+                    single_input = mmcv.imread(single_input, backend="pillow")
                     new_inputs.append(single_input)
             else:
                 new_inputs.append(single_input)

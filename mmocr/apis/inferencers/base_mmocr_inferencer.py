@@ -186,7 +186,7 @@ class BaseMMOCRInferencer(BaseInferencer):
 
         for single_input, pred in zip(inputs, preds):
             if isinstance(single_input, str):
-                img = mmcv.imread(single_input)
+                img = mmcv.imread(single_input, backend="pillow")
                 img = img[:, :, ::-1]
                 img_name = osp.basename(single_input)
             elif isinstance(single_input, np.ndarray):
