@@ -125,7 +125,7 @@ class MMOCRInferencer(BaseMMOCRInferencer):
             self.kie_inferencer = KIEInferencer(kie_config, kie_ckpt, device)
             self.mode = 'det_rec_kie'
 
-    def preprocess(self, inputs: InputsType, tiling=False, show=False):
+    def preprocess(self, inputs: InputsType, tiling=False, show=False, tmp_dir=''):
         new_inputs = []
         for single_input in inputs:
             if isinstance(single_input, str):
@@ -149,14 +149,15 @@ class MMOCRInferencer(BaseMMOCRInferencer):
 
                             # TO debug tiling
                             if show:
-                                img_name = osp.basename(filename)
-                                extender = img_name.split('.')[1]
+                                import tempfile
+                                tmp_dir = tempfile.mkdtemp(prefix="OCR-tiling-")
+                                img_name, extender = osp.splitext(filename)
                                 for idx, tile in enumerate(tile_input):
-                                    tile_img_name = f"{img_name.split(extender)[0][:-1]}_tiling_{idx+1}.{extender}"
-                                    cv2.imwrite(tile_img_name, tile)
+                                    tile_img_name = f"{osp.basename(img_name)}_tiling_{idx+1}{extender}"
+                                    cv2.imwrite(osp.join(tmp_dir, tile_img_name), tile)
             else:
                 new_inputs.append(single_input)
-        return new_inputs
+        return new_inputs, tmp_dir
 
     def forward(self, inputs: InputsType) -> PredType:
         """Forward the inputs to the model.

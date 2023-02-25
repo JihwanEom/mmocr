@@ -6,7 +6,8 @@ import mmcv
 import numpy as np
 from mmengine.dataset import Compose
 from mmengine.structures import InstanceData
-
+import glob
+import shutil
 from mmocr.utils import ConfigType
 from .base_inferencer import BaseInferencer
 
@@ -93,7 +94,7 @@ class BaseMMOCRInferencer(BaseInferencer):
                 return i
         return -1
 
-    def preprocess(self, inputs: InputsType, tiling=False, show=False) -> Dict:
+    def preprocess(self, inputs: InputsType, tiling=False, show=False, tmp_dir='') -> Dict:
         """Process the inputs into a model-feedable format."""
         results = []
         for single_input in inputs:
@@ -113,7 +114,7 @@ class BaseMMOCRInferencer(BaseInferencer):
                 raise ValueError(
                     f'Unsupported input type: {type(single_input)}')
 
-        return self._collate(results)
+        return self._collate(results), 1
 
     def _collate(self, results: List[Dict]) -> Dict:
         """Collate the results from different images."""
@@ -149,9 +150,9 @@ class BaseMMOCRInferencer(BaseInferencer):
         postprocess_kwargs.update(filename=user_inputs)
         postprocess_kwargs.update(tiling=kwargs.get("tiling", False))
 
-        data = self.preprocess(inputs, **preprocess_kwargs)
+        data, tmp_dir = self.preprocess(inputs, **preprocess_kwargs)
         preds = self.forward(data, **forward_kwargs)
-        imgs = self.visualize(inputs, preds, **visualize_kwargs)
+        imgs = self.visualize(inputs, preds, tmp_dir=tmp_dir, **visualize_kwargs)
         results = self.postprocess(
             preds, imgs, is_batch=is_batch, **postprocess_kwargs)
         return results
@@ -159,6 +160,7 @@ class BaseMMOCRInferencer(BaseInferencer):
     def visualize(self,
                   inputs: InputsType,
                   preds: PredType,
+                  tmp_dir: str = '',
                   show: bool = False,
                   wait_time: int = 0,
                   draw_pred: bool = True,
@@ -188,11 +190,12 @@ class BaseMMOCRInferencer(BaseInferencer):
                              'defined in the config, but got None.')
 
         results = []
-        if tiling:
+        if tiling and tmp_dir != '':
             img_name, extender = osp.splitext(inputs[0])
             for idx in range(len(preds)-1):
                 tile_img_name = f"{osp.basename(img_name)}_tiling_{idx+1}{extender}"
-                inputs.append(tile_img_name)
+                inputs.append(os.path.join(tmp_dir, tile_img_name))
+
         for idx, (single_input, pred) in enumerate(zip(inputs, preds)):
             if isinstance(single_input, str):
                 try:
@@ -226,10 +229,8 @@ class BaseMMOCRInferencer(BaseInferencer):
             results.append(img)
             self.num_visualized_imgs += 1
 
-        if tiling:
-            tmp_imgs = [i for i in inputs if 'tiling' in i]
-            for tmp_img in tmp_imgs:
-                os.remove(tmp_img)
+        if tiling and tmp_dir != '':
+            shutil.rmtree(tmp_dir)
         return results
 
     def postprocess(
