@@ -1,7 +1,7 @@
 # Copyright (c) OpenMMLab. All rights reserved.
 import os.path as osp
 from typing import Dict, List, Optional, Sequence, Tuple, Union
-
+import os
 import mmcv
 import numpy as np
 from mmengine.dataset import Compose
@@ -93,7 +93,7 @@ class BaseMMOCRInferencer(BaseInferencer):
                 return i
         return -1
 
-    def preprocess(self, inputs: InputsType) -> Dict:
+    def preprocess(self, inputs: InputsType, tiling=False, show=False) -> Dict:
         """Process the inputs into a model-feedable format."""
         results = []
         for single_input in inputs:
@@ -136,14 +136,18 @@ class BaseMMOCRInferencer(BaseInferencer):
         params = self._dispatch_kwargs(**kwargs)
         preprocess_kwargs = self.base_params[0].copy()
         preprocess_kwargs.update(params[0])
+        preprocess_kwargs.update(tiling=kwargs.get("tiling", False))
+        preprocess_kwargs.update(show=kwargs.get("show", False))
         forward_kwargs = self.base_params[1].copy()
         forward_kwargs.update(params[1])
         visualize_kwargs = self.base_params[2].copy()
         visualize_kwargs.update(params[2])
         visualize_kwargs.update(out_file=kwargs.get("pred_out_file", ""))
+        visualize_kwargs.update(tiling=kwargs.get("tiling", False))
         postprocess_kwargs = self.base_params[3].copy()
         postprocess_kwargs.update(params[3])
         postprocess_kwargs.update(filename=user_inputs)
+        postprocess_kwargs.update(tiling=kwargs.get("tiling", False))
 
         data = self.preprocess(inputs, **preprocess_kwargs)
         preds = self.forward(data, **forward_kwargs)
@@ -160,7 +164,8 @@ class BaseMMOCRInferencer(BaseInferencer):
                   draw_pred: bool = True,
                   pred_score_thr: float = 0.3,
                   img_out_dir: str = '',
-                  out_file: str = '') -> List[np.ndarray]:
+                  out_file: str = '',
+                  tiling: bool = False) -> List[np.ndarray]:
         """Visualize predictions.
 
         Args:
@@ -183,8 +188,12 @@ class BaseMMOCRInferencer(BaseInferencer):
                              'defined in the config, but got None.')
 
         results = []
-
-        for single_input, pred in zip(inputs, preds):
+        if tiling:
+            img_name, extender = osp.splitext(inputs[0])
+            for idx in range(len(preds)-1):
+                tile_img_name = f"{osp.basename(img_name)}_tiling_{idx+1}{extender}"
+                inputs.append(tile_img_name)
+        for idx, (single_input, pred) in enumerate(zip(inputs, preds)):
             if isinstance(single_input, str):
                 try:
                     img = mmcv.imread(single_input, backend='pillow')
@@ -217,6 +226,10 @@ class BaseMMOCRInferencer(BaseInferencer):
             results.append(img)
             self.num_visualized_imgs += 1
 
+        if tiling:
+            tmp_imgs = [i for i in inputs if 'tiling' in i]
+            for tmp_img in tmp_imgs:
+                os.remove(tmp_img)
         return results
 
     def postprocess(
@@ -228,6 +241,7 @@ class BaseMMOCRInferencer(BaseInferencer):
         pred_out_file: str = '',
         get_datasample: bool = False,
         filename='',
+        tiling: bool = False,
     ) -> Union[ResType, Tuple[ResType, np.ndarray]]:
         """Postprocess predictions.
 

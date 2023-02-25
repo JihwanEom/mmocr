@@ -193,6 +193,7 @@ class MMOCR:
                  show: bool = False,
                  print_result: bool = False,
                  pred_out_file: str = '',
+                 tiling: bool = False,
                  **kwargs) -> Union[Dict, List[Dict]]:
         """Inferences text detection, recognition, and KIE on an image or a
         folder of images.
@@ -221,7 +222,8 @@ class MMOCR:
                 img_out_dir=img_out_dir,
                 show=show,
                 print_result=print_result,
-                pred_out_file=pred_out_file)
+                pred_out_file=pred_out_file,
+                tiling=tiling)
         except IndexError:
             result = dict(filename=filename, rec_texts=["NO_TEXT"], rec_scores=[0.0], det_polygons=[[[0.0, 0.0, 0.0, 0.0, 0.0]]], det_scores=[0.0])
             json.dump(result, open(pred_out_file, 'w'))
