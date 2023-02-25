@@ -134,11 +134,14 @@ class TextSpottingLocalVisualizer(BaseLocalVisualizer):
             vis_folder_name = out_file.split('/')[:-1]
             vis_folder_name = "/".join(vis_folder_name)
             vis_folder_name = os.path.join(vis_folder_name, "visualize")
-            if not os.path.exists(vis_folder_name):
-                os.makedirs(vis_folder_name, exist_ok=True)
-            vis_file = os.path.join(vis_folder_name, name.replace('.json', '.jpg'))
-            im = Image.fromarray(cat_images)
-            im.save(vis_file)
+            if len(os.listdir(vis_folder_name)) >= 100:
+                pass
+            else:
+                if not os.path.exists(vis_folder_name):
+                    os.makedirs(vis_folder_name, exist_ok=True)
+                vis_file = os.path.join(vis_folder_name, name.replace('.json', '.jpg'))
+                im = Image.fromarray(cat_images)
+                im.save(vis_file)
             # self.show(cat_images, win_name=name, wait_time=wait_time)
         else:
             self.add_image(name, cat_images, step)
