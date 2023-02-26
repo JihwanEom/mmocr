@@ -109,7 +109,7 @@ class TextSpottingLocalVisualizer(BaseLocalVisualizer):
             os.makedirs(vis_folder_name, exist_ok=True)
         vis_folder_files = os.listdir(vis_folder_name)
         vis_folder_files = [i for i in vis_folder_files if i.find("tiling") < 0]
-        if os.path.exists(vis_folder_name) and len(vis_folder_files) >= 100:
+        if os.path.exists(vis_folder_name) and len(vis_folder_files) >= 50:
             return
         cat_images = []
 

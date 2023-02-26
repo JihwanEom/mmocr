@@ -271,6 +271,16 @@ class MMOCR:
                 'dbnetpp_resnet50-dcnv2_fpnc_1200e_icdar2015/'
                 'dbnetpp_resnet50-dcnv2_fpnc_1200e_icdar2015_20220829_230108-f289bd20.pth'  # noqa: E501
             },
+            'DBPP_oclip': {
+                'config':
+                'textdet/'
+                'dbnetpp/dbnetpp_resnet50-oclip_fpnc_1200e_icdar2015.py',
+                'ckpt':
+                'textdet/'
+                'dbnetpp/'
+                'dbnetpp_resnet50-oclip_fpnc_1200e_icdar2015/'
+                'dbnetpp_resnet50-oclip_fpnc_1200e_icdar2015_20221101_124139-4ecb39ac.pth'  # noqa: E501
+            },
             'DRRG': {
                 'config':
                 'textdet/'
