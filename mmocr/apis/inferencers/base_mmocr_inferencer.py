@@ -2,6 +2,11 @@
 import os.path as osp
 from typing import Dict, List, Optional, Sequence, Tuple, Union
 import os
+import cv2
+import PIL
+from PIL import Image, ImageFile
+ImageFile.LOAD_TRUNCATED_IMAGES = True
+PIL.Image.MAX_IMAGE_PIXELS = 933120000
 import mmcv
 import numpy as np
 from mmengine.dataset import Compose
@@ -202,6 +207,12 @@ class BaseMMOCRInferencer(BaseInferencer):
                     img = mmcv.imread(single_input, backend='pillow')
                 except (SyntaxError, OSError): # Not a Tiff file, truncated image
                     img = mmcv.imread(single_input, backend='cv2')
+                if img is None:
+                    pil_img = Image.open(single_input).convert('RGB')
+                    np_array = np.asarray(pil_img)
+                    bgr_array = cv2.cvtColor(np_array, cv2.COLOR_RGB2BGR)
+                    img = bgr_array
+                        
                 img = img[:, :, ::-1]
                 img_name = osp.basename(single_input)
             elif isinstance(single_input, np.ndarray):

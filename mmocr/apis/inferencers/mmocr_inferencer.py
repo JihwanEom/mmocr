@@ -3,6 +3,8 @@ import os.path as osp
 from datetime import datetime
 from typing import Dict, List, Optional, Tuple, Union
 import PIL
+from PIL import Image, ImageFile
+ImageFile.LOAD_TRUNCATED_IMAGES = True
 PIL.Image.MAX_IMAGE_PIXELS = 933120000
 import mmcv
 import mmengine
@@ -140,6 +142,12 @@ class MMOCRInferencer(BaseMMOCRInferencer):
                         single_input = mmcv.imread(single_input, backend='pillow')
                     except (SyntaxError, OSError): # Not a Tiff file, truncated image
                         single_input = mmcv.imread(single_input, backend='cv2')
+                    if single_input is None:
+                        pil_img = Image.open(filename).convert('RGB')
+                        np_array = np.asarray(pil_img)
+                        bgr_array = cv2.cvtColor(np_array, cv2.COLOR_RGB2BGR)
+                        single_input = bgr_array
+                        
                     new_inputs.append(single_input)
                     if tiling:
                         tile_input = tile_image(single_input, overlap_ratio=0.5)
