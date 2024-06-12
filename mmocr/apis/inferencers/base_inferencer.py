@@ -103,6 +103,7 @@ class BaseInferencer:
             for func_kwarg in func_kwargs:
                 if func_kwarg in kwargs:
                     dispatched_kwargs.add(func_kwarg)
+                    dispatched_kwargs.add('tiling')
                     results[self.func_order[func_name]][func_kwarg] = kwargs[
                         func_kwarg]
 

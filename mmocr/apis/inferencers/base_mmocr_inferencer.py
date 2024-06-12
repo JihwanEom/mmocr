@@ -1,12 +1,18 @@
 # Copyright (c) OpenMMLab. All rights reserved.
 import os.path as osp
 from typing import Dict, List, Optional, Sequence, Tuple, Union
-
+import os
+import cv2
+import PIL
+from PIL import Image, ImageFile
+ImageFile.LOAD_TRUNCATED_IMAGES = True
+PIL.Image.MAX_IMAGE_PIXELS = 933120000
 import mmcv
 import numpy as np
 from mmengine.dataset import Compose
 from mmengine.structures import InstanceData
-
+import glob
+import shutil
 from mmocr.utils import ConfigType
 from .base_inferencer import BaseInferencer
 
@@ -93,7 +99,7 @@ class BaseMMOCRInferencer(BaseInferencer):
                 return i
         return -1
 
-    def preprocess(self, inputs: InputsType) -> Dict:
+    def preprocess(self, inputs: InputsType, tiling=False, show=False, tmp_dir='') -> Dict:
         """Process the inputs into a model-feedable format."""
         results = []
         for single_input in inputs:
@@ -113,7 +119,7 @@ class BaseMMOCRInferencer(BaseInferencer):
                 raise ValueError(
                     f'Unsupported input type: {type(single_input)}')
 
-        return self._collate(results)
+        return self._collate(results), 1
 
     def _collate(self, results: List[Dict]) -> Dict:
         """Collate the results from different images."""
@@ -136,16 +142,22 @@ class BaseMMOCRInferencer(BaseInferencer):
         params = self._dispatch_kwargs(**kwargs)
         preprocess_kwargs = self.base_params[0].copy()
         preprocess_kwargs.update(params[0])
+        preprocess_kwargs.update(tiling=kwargs.get("tiling", False))
+        preprocess_kwargs.update(show=kwargs.get("show", False))
         forward_kwargs = self.base_params[1].copy()
         forward_kwargs.update(params[1])
         visualize_kwargs = self.base_params[2].copy()
         visualize_kwargs.update(params[2])
+        visualize_kwargs.update(out_file=kwargs.get("pred_out_file", ""))
+        visualize_kwargs.update(tiling=kwargs.get("tiling", False))
         postprocess_kwargs = self.base_params[3].copy()
         postprocess_kwargs.update(params[3])
+        postprocess_kwargs.update(filename=user_inputs)
+        postprocess_kwargs.update(tiling=kwargs.get("tiling", False))
 
-        data = self.preprocess(inputs, **preprocess_kwargs)
+        data, tmp_dir = self.preprocess(inputs, **preprocess_kwargs)
         preds = self.forward(data, **forward_kwargs)
-        imgs = self.visualize(inputs, preds, **visualize_kwargs)
+        imgs = self.visualize(inputs, preds, tmp_dir=tmp_dir, **visualize_kwargs)
         results = self.postprocess(
             preds, imgs, is_batch=is_batch, **postprocess_kwargs)
         return results
@@ -153,11 +165,14 @@ class BaseMMOCRInferencer(BaseInferencer):
     def visualize(self,
                   inputs: InputsType,
                   preds: PredType,
+                  tmp_dir: str = '',
                   show: bool = False,
                   wait_time: int = 0,
                   draw_pred: bool = True,
                   pred_score_thr: float = 0.3,
-                  img_out_dir: str = '') -> List[np.ndarray]:
+                  img_out_dir: str = '',
+                  out_file: str = '',
+                  tiling: bool = False) -> List[np.ndarray]:
         """Visualize predictions.
 
         Args:
@@ -180,10 +195,24 @@ class BaseMMOCRInferencer(BaseInferencer):
                              'defined in the config, but got None.')
 
         results = []
+        if tiling and tmp_dir != '':
+            img_name, extender = osp.splitext(inputs[0])
+            for idx in range(len(preds)-1):
+                tile_img_name = f"{osp.basename(img_name)}_tiling_{idx+1}{extender}"
+                inputs.append(os.path.join(tmp_dir, tile_img_name))
 
-        for single_input, pred in zip(inputs, preds):
+        for idx, (single_input, pred) in enumerate(zip(inputs, preds)):
             if isinstance(single_input, str):
-                img = mmcv.imread(single_input)
+                try:
+                    img = mmcv.imread(single_input, backend='pillow')
+                except (SyntaxError, OSError): # Not a Tiff file, truncated image
+                    img = mmcv.imread(single_input, backend='cv2')
+                if img is None:
+                    pil_img = Image.open(single_input).convert('RGB')
+                    np_array = np.asarray(pil_img)
+                    bgr_array = cv2.cvtColor(np_array, cv2.COLOR_RGB2BGR)
+                    img = bgr_array
+                        
                 img = img[:, :, ::-1]
                 img_name = osp.basename(single_input)
             elif isinstance(single_input, np.ndarray):
@@ -194,8 +223,8 @@ class BaseMMOCRInferencer(BaseInferencer):
                 raise ValueError('Unsupported input type: '
                                  f'{type(single_input)}')
 
-            out_file = osp.join(img_out_dir, img_name) if img_out_dir != '' \
-                else None
+            # out_file = osp.join(img_out_dir, img_name) if img_out_dir != '' \
+            #     else None
 
             self.visualizer.add_datasample(
                 img_name,
@@ -211,6 +240,8 @@ class BaseMMOCRInferencer(BaseInferencer):
             results.append(img)
             self.num_visualized_imgs += 1
 
+        if tiling and tmp_dir != '':
+            shutil.rmtree(tmp_dir)
         return results
 
     def postprocess(
@@ -221,6 +252,8 @@ class BaseMMOCRInferencer(BaseInferencer):
         print_result: bool = False,
         pred_out_file: str = '',
         get_datasample: bool = False,
+        filename='',
+        tiling: bool = False,
     ) -> Union[ResType, Tuple[ResType, np.ndarray]]:
         """Postprocess predictions.
 

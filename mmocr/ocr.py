@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Dict, List, Optional, Union
 
 import torch
-
+import json
 from mmocr.apis.inferencers import MMOCRInferencer
 from mmocr.apis.inferencers.base_mmocr_inferencer import InputsType
 from mmocr.utils import register_all_modules
@@ -193,6 +193,7 @@ class MMOCR:
                  show: bool = False,
                  print_result: bool = False,
                  pred_out_file: str = '',
+                 tiling: bool = False,
                  **kwargs) -> Union[Dict, List[Dict]]:
         """Inferences text detection, recognition, and KIE on an image or a
         folder of images.
@@ -214,12 +215,19 @@ class MMOCR:
             "rec_texts", "rec_scores", "kie_labels", "kie_scores",
             "kie_edge_labels" and "kie_edge_scores".
         """
-        return self.inferencer(
-            img,
-            img_out_dir=img_out_dir,
-            show=show,
-            print_result=print_result,
-            pred_out_file=pred_out_file)
+        filename = img.split('/')[-1]
+        try:
+            result = self.inferencer(
+                img,
+                img_out_dir=img_out_dir,
+                show=show,
+                print_result=print_result,
+                pred_out_file=pred_out_file,
+                tiling=tiling)
+        except IndexError:
+            result = dict(filename=filename, rec_texts=["NO_TEXT"], rec_scores=[0.0], det_polygons=[[[0.0, 0.0, 0.0, 0.0, 0.0]]], det_scores=[0.0])
+            json.dump(result, open(pred_out_file, 'w'))
+        return result
 
     def get_model_config(self, model_name: str) -> Dict:
         """Get the model configuration including model config and checkpoint
@@ -262,6 +270,16 @@ class MMOCR:
                 'dbnetpp/'
                 'dbnetpp_resnet50-dcnv2_fpnc_1200e_icdar2015/'
                 'dbnetpp_resnet50-dcnv2_fpnc_1200e_icdar2015_20220829_230108-f289bd20.pth'  # noqa: E501
+            },
+            'DBPP_oclip': {
+                'config':
+                'textdet/'
+                'dbnetpp/dbnetpp_resnet50-oclip_fpnc_1200e_icdar2015.py',
+                'ckpt':
+                'textdet/'
+                'dbnetpp/'
+                'dbnetpp_resnet50-oclip_fpnc_1200e_icdar2015/'
+                'dbnetpp_resnet50-oclip_fpnc_1200e_icdar2015_20221101_124139-4ecb39ac.pth'  # noqa: E501
             },
             'DRRG': {
                 'config':

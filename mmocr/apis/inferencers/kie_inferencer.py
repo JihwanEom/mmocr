@@ -84,7 +84,10 @@ class KIEInferencer(BaseMMOCRInferencer):
                     }
                     img = single_input['img']
                     if isinstance(img, str):
-                        img = mmcv.imread(img)
+                        try:
+                            img = mmcv.imread(img, backend='pillow')
+                        except (SyntaxError, OSError): # Not a Tiff file, truncated image
+                            img = mmcv.imread(img, backend='cv2')
                     new_input['img_shape'] = img.shape[::2]
                 results.append(self.pipeline(new_input))
             else:
@@ -142,7 +145,10 @@ class KIEInferencer(BaseMMOCRInferencer):
             assert 'img' in single_input or 'img_shape' in single_input
             if 'img' in single_input:
                 if isinstance(single_input['img'], str):
-                    img = mmcv.imread(single_input['img'])
+                    try:
+                        img = mmcv.imread(single_input['img'], backend='pillow')
+                    except (SyntaxError, OSError): # Not a Tiff file, truncated image
+                        img = mmcv.imread(single_input['img'], backend='cv2')
                     img_name = osp.basename(single_input['img'])
                 elif isinstance(single_input['img'], np.ndarray):
                     img = single_input['img'].copy()

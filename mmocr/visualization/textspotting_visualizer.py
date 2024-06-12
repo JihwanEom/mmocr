@@ -1,6 +1,7 @@
 # Copyright (c) OpenMMLab. All rights reserved.
 from typing import Optional, Sequence, Union
-
+from PIL import Image
+import os
 import mmcv
 import numpy as np
 import torch
@@ -101,6 +102,15 @@ class TextSpottingLocalVisualizer(BaseLocalVisualizer):
                 and masks. Defaults to 0.3.
             step (int): Global step value to record. Defaults to 0.
         """
+        vis_folder_name = out_file.split('/')[:-1]
+        vis_folder_name = "/".join(vis_folder_name)
+        vis_folder_name = os.path.join(vis_folder_name, "visualize")
+        if not os.path.exists(vis_folder_name):
+            os.makedirs(vis_folder_name, exist_ok=True)
+        vis_folder_files = os.listdir(vis_folder_name)
+        vis_folder_files = [i for i in vis_folder_files if i.find("tiling") < 0]
+        if os.path.exists(vis_folder_name) and len(vis_folder_files) >= 50:
+            return
         cat_images = []
 
         if draw_gt:
@@ -130,12 +140,15 @@ class TextSpottingLocalVisualizer(BaseLocalVisualizer):
             cat_images = image
 
         if show:
-            self.show(cat_images, win_name=name, wait_time=wait_time)
+            vis_file = os.path.join(vis_folder_name, name.replace('.json', '.jpg'))
+            im = Image.fromarray(cat_images)
+            im.save(vis_file)
+            # self.show(cat_images, win_name=name, wait_time=wait_time)
         else:
             self.add_image(name, cat_images, step)
 
-        if out_file is not None:
-            mmcv.imwrite(cat_images[..., ::-1], out_file)
+        # if out_file is not None:
+        #     mmcv.imwrite(cat_images[..., ::-1], out_file)
 
         self.set_image(cat_images)
         return self.get_image()

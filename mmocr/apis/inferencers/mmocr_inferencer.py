@@ -2,11 +2,14 @@
 import os.path as osp
 from datetime import datetime
 from typing import Dict, List, Optional, Tuple, Union
-
+import PIL
+from PIL import Image, ImageFile
+ImageFile.LOAD_TRUNCATED_IMAGES = True
+PIL.Image.MAX_IMAGE_PIXELS = 933120000
 import mmcv
 import mmengine
 import numpy as np
-
+import cv2
 from mmocr.registry import VISUALIZERS
 from mmocr.structures.textdet_data_sample import TextDetDataSample
 from mmocr.utils import ConfigType, bbox2poly, crop_img, poly2bbox
@@ -16,6 +19,71 @@ from .kie_inferencer import KIEInferencer
 from .textdet_inferencer import TextDetInferencer
 from .textrec_inferencer import TextRecInferencer
 
+
+def get_tile_size(image_size):
+    """
+    이미지 크기를 기반으로 타일 크기를 결정합니다.
+
+    Args:
+        image_size: 이미지의 너비와 높이를 담은 튜플.
+
+    Returns:
+        타일 크기의 너비와 높이를 담은 튜플.
+    """
+    # minimum tile size 선언
+    min_tile_size = (512, 512)
+
+    max_dimension = max(image_size)
+    if max_dimension <= 1024: # 이미지가 1024보다 작으면 min_tile_size 그대로 사용
+        scale_factor = 1.0
+    else:
+        # 이미지 크기에 따라 min_tile_size scaling
+        scale_factor = max_dimension / 1024.0
+
+    # 스케일링 요소를 기반으로 타일 크기를 계산합니다
+    tile_size = (int(min_tile_size[0] * scale_factor), int(min_tile_size[1] * scale_factor))
+    # print(f"TILE SIZE: {tile_size}, SCALE_FACTOR: {scale_factor}")
+    return tile_size
+
+def tile_image(image, overlap_ratio=0.25): # TODO: OVERLAP RATIO!
+    """
+    Tiles an input image using a dynamically determined tile size and an overlap ratio.
+
+    Args:
+        image: A NumPy array containing the input image.
+        overlap_ratio: A float representing the overlap ratio between tiles (default: 0.25).
+
+    Returns:
+        A list of NumPy arrays containing the tiled images.
+    """
+    # Determine the tile size based on the image size
+    tile_size = get_tile_size(image.shape[:2])
+
+    
+    # Calculate the overlap distance based on the tile size and overlap ratio
+    overlap_distance = int(tile_size[0] * overlap_ratio)
+
+    # Calculate the number of tiles needed to cover the entire image
+    num_tiles = (int(np.ceil((image.shape[0] - overlap_distance) / (tile_size[0] - overlap_distance))),
+                 int(np.ceil((image.shape[1] - overlap_distance) / (tile_size[1] - overlap_distance))))
+
+    if num_tiles[0] == 0 or num_tiles[1] == 0:
+        return [image]
+    
+    # Create a list to store the tiled images
+    tiled_images = []
+
+    # Loop over the tiles and extract each sub-image
+    for i in range(num_tiles[0]):
+        for j in range(num_tiles[1]):
+            x = j * (tile_size[1] - overlap_distance)
+            y = i * (tile_size[0] - overlap_distance)
+            w = min(tile_size[1], image.shape[1] - x)
+            h = min(tile_size[0], image.shape[0] - y)
+            tile = image[y:y+h, x:x+w]
+            tiled_images.append(tile)
+
+    return tiled_images
 
 class MMOCRInferencer(BaseMMOCRInferencer):
 
@@ -59,7 +127,7 @@ class MMOCRInferencer(BaseMMOCRInferencer):
             self.kie_inferencer = KIEInferencer(kie_config, kie_ckpt, device)
             self.mode = 'det_rec_kie'
 
-    def preprocess(self, inputs: InputsType):
+    def preprocess(self, inputs: InputsType, tiling=False, show=False, tmp_dir=''):
         new_inputs = []
         for single_input in inputs:
             if isinstance(single_input, str):
@@ -69,11 +137,35 @@ class MMOCRInferencer(BaseMMOCRInferencer):
                     #     new_inputs.append(
                     #         mmcv.imread(osp.join(single_input, img_path)))
                 else:
-                    single_input = mmcv.imread(single_input)
+                    filename = single_input
+                    try:
+                        single_input = mmcv.imread(single_input, backend='pillow')
+                    except (SyntaxError, OSError): # Not a Tiff file, truncated image
+                        single_input = mmcv.imread(single_input, backend='cv2')
+                    if single_input is None:
+                        pil_img = Image.open(filename).convert('RGB')
+                        np_array = np.asarray(pil_img)
+                        bgr_array = cv2.cvtColor(np_array, cv2.COLOR_RGB2BGR)
+                        single_input = bgr_array
+                        
                     new_inputs.append(single_input)
+                    if tiling:
+                        tile_input = tile_image(single_input, overlap_ratio=0.5)
+                        if len(tile_input) > 1:
+                            for tile in tile_input:
+                                new_inputs.append(tile)
+
+                            # TO debug tiling
+                            if show:
+                                import tempfile
+                                tmp_dir = tempfile.mkdtemp(prefix="OCR-tiling-")
+                                img_name, extender = osp.splitext(filename)
+                                for idx, tile in enumerate(tile_input):
+                                    tile_img_name = f"{osp.basename(img_name)}_tiling_{idx+1}{extender}"
+                                    cv2.imwrite(osp.join(tmp_dir, tile_img_name), tile)
             else:
                 new_inputs.append(single_input)
-        return new_inputs
+        return new_inputs, tmp_dir
 
     def forward(self, inputs: InputsType) -> PredType:
         """Forward the inputs to the model.
@@ -125,7 +217,7 @@ class MMOCRInferencer(BaseMMOCRInferencer):
                         self.kie_inputs, get_datasample=True)
         return result
 
-    def visualize(self, inputs: InputsType, preds: PredType,
+    def visualize(self, inputs: InputsType, preds: PredType, tiling: bool = False,
                   **kwargs) -> List[np.ndarray]:
         """Visualize predictions.
 
@@ -146,7 +238,7 @@ class MMOCRInferencer(BaseMMOCRInferencer):
                                                  **kwargs)
         elif 'rec' in self.mode:
             if 'det' in self.mode:
-                super().visualize(inputs, self._pack_e2e_datasamples(preds),
+                super().visualize(inputs, self._pack_e2e_datasamples(preds), tiling=tiling,
                                   **kwargs)
             else:
                 return self.textrec_inferencer.visualize(
@@ -160,7 +252,9 @@ class MMOCRInferencer(BaseMMOCRInferencer):
                     imgs: Optional[List[np.ndarray]] = None,
                     is_batch: bool = False,
                     print_result: bool = False,
-                    pred_out_file: str = ''
+                    pred_out_file: str = '',
+                    filename: str ='',
+                    tiling: bool = False,
                     ) -> Union[ResType, Tuple[ResType, np.ndarray]]:
         """Postprocess predictions.
 
@@ -181,7 +275,7 @@ class MMOCRInferencer(BaseMMOCRInferencer):
             "rec_texts", "rec_scores", "kie_labels", "kie_scores",
             "kie_edge_labels" and "kie_edge_scores".
         """
-
+        filename = filename.split('/')[-1]
         results = [{} for _ in range(len(next(iter(preds.values()))))]
         if 'rec' in self.mode:
             for i, rec_pred in enumerate(preds['rec']):
@@ -208,8 +302,8 @@ class MMOCRInferencer(BaseMMOCRInferencer):
                         kie_scores=kie_dict_res['scores']),
                     kie_edge_scores=kie_dict_res['edge_scores'],
                     kie_edge_labels=kie_dict_res['edge_labels'])
-
-        if not is_batch:
+        results[i].update(filename=filename)
+        if not tiling:
             results = results[0]
         if print_result:
             print(results)
